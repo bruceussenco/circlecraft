@@ -6,11 +6,17 @@
 #include "planet.h"
 
 #define TEXTURE_SIZE 8
+#define DEFAULT_ZOOM 4
 
 typedef struct {
     float x;
     float y;
 } Player;
+
+typedef struct {
+    int x;
+    int y;
+} IntVec2;
 
 float getRadius(float tileAngle, int worldHeight, float y) {
     return (1/tileAngle)*pow(1.0+tileAngle, worldHeight-y);
@@ -27,9 +33,6 @@ float radToDeg(float angle) {
 // ---------- update ------------ //
 void update(Player* player, Camera2D* camera, Planet* planet,
             bool* planetMode, bool* debugMenu) {
-    /*camera->zoom = expf(logf(camera->zoom) + ((float)GetMouseWheelMove()*0.1f));
-    if (camera->zoom > 10.0f) camera->zoom = 10.0f;
-    else if (camera->zoom < 0.5f) camera->zoom = 0.5f;*/
     if (IsKeyPressed(KEY_Q)) *planetMode = !*planetMode;
     if (IsKeyPressed(KEY_E)) *debugMenu = !*debugMenu;
 
@@ -44,25 +47,25 @@ void update(Player* player, Camera2D* camera, Planet* planet,
     if (player->y < 0) player->y = 0;
     if (player->y > planet->height-2) player->y = planet->height-2;
 
-    if (*planetMode) { // planet mode
+    if (*planetMode) {
         float tileAngle = PI*2/planet->width;
         float py = player->y + 1;
         float r = getRadius(tileAngle, planet->height, py)*TEXTURE_SIZE;
-        float a = getAngle(PI*2/planet->width, player->x+0.5);
+        float a = getAngle(tileAngle, player->x+0.5);
         float x = cos(a)*r;
         float y = sin(a)*r;
         camera->target.x = x;
         camera->target.y = y;
         camera->rotation = -radToDeg(a) + 90;
-        camera->zoom = 4/(getRadius(tileAngle, planet->height, py+1)
-                        - getRadius(tileAngle, planet->height, py));
-    } else { // flat mode
+        camera->zoom = DEFAULT_ZOOM/(getRadius(tileAngle, planet->height, py+1)
+                                   - getRadius(tileAngle, planet->height, py));
+    } else {
         camera->target = (Vector2){
             (player->x)*TEXTURE_SIZE,
             (player->y)*TEXTURE_SIZE
         };
         camera->rotation = 0;
-        camera->zoom = 4;
+        camera->zoom = DEFAULT_ZOOM;
     }
 }
 
@@ -87,38 +90,26 @@ int main(void) {
     Player player = {1.0, planet.height/2-1.0};
 
     Camera2D camera = {0};
-    camera.target = (Vector2){player.x*TEXTURE_SIZE, player.y*TEXTURE_SIZE};
     camera.offset = (Vector2){SCREEN_WIDTH/2, SCREEN_HEIGHT/2};
-    camera.rotation = 0;
-    camera.zoom = 1;
-    camera.zoom = 4;
-
-    Shader planetShader = LoadShader("planet.vs", 0);
+    camera.zoom = DEFAULT_ZOOM;
 
     // ------------------------------
+    Shader planetShader = LoadShader("planet.vs", 0);
     
     float tileAngle = 2*PI/planet.width;
-    float innerPlanetRadius = TEXTURE_SIZE/tileAngle;
-    float tileSize = TEXTURE_SIZE;
+    float textureSize = TEXTURE_SIZE;
     float planetWidthPx = planet.width*TEXTURE_SIZE;
     float planetHeight = planet.height;
 
-    int planetRadiusLoc = GetShaderLocation(planetShader, "planetRadius");
     int worldWidthPxLoc = GetShaderLocation(planetShader, "worldWidthPx");
     int worldHeightLoc = GetShaderLocation(planetShader, "worldHeight");
     int tileAngleLoc = GetShaderLocation(planetShader, "angleBetweenTiles");
-    int tileSizeLoc = GetShaderLocation(planetShader, "tileSize");
+    int textureSizeLoc = GetShaderLocation(planetShader, "textureSize");
 
-    SetShaderValue(planetShader, planetRadiusLoc,
-                   &innerPlanetRadius, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(planetShader, worldWidthPxLoc,
-                   &planetWidthPx, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(planetShader, worldHeightLoc,
-                   &planetHeight, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(planetShader, tileAngleLoc,
-                   &tileAngle, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(planetShader, tileSizeLoc,
-                   &tileSize, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(planetShader, worldWidthPxLoc, &planetWidthPx, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(planetShader, worldHeightLoc, &planetHeight, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(planetShader, tileAngleLoc, &tileAngle, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(planetShader, textureSizeLoc, &textureSize, SHADER_UNIFORM_FLOAT);
 
     bool planetMode = true;
     bool debugMenu  = true;
@@ -132,17 +123,19 @@ int main(void) {
             camera.target.x + (mScreen.x-camera.offset.x)/camera.zoom,
             camera.target.y + (mScreen.y-camera.offset.y)/camera.zoom
         };
-        int mPlanetX = floor(mGlobal.x/TEXTURE_SIZE);
-        int mPlanetY = floor(mGlobal.y/TEXTURE_SIZE);
+        IntVec2 mousePlanet = {
+            floor(mGlobal.x/TEXTURE_SIZE),
+            floor(mGlobal.y/TEXTURE_SIZE)
+        };
 
         update(&player, &camera, &planet, &planetMode, &debugMenu);
 
         if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
             if (
-                mPlanetX >= 0 && mPlanetY >= 0 &&
-                mPlanetX < planet.width && mPlanetY < planet.height
+                mousePlanet.x >= 0 && mousePlanet.y >= 0 &&
+                mousePlanet.x < planet.width && mousePlanet.y < planet.height
             ) {
-                int index = mPlanetX + mPlanetY*planet.width;
+                int index = mousePlanet.x + mousePlanet.y*planet.width;
                 planet.blocks[index] = 0;
             }
         }
@@ -150,8 +143,8 @@ int main(void) {
         // render
         BeginDrawing();
         ClearBackground(RAYWHITE);
-        if (planetMode) BeginShaderMode(planetShader);
         BeginMode2D(camera);
+        if (planetMode) BeginShaderMode(planetShader);
 
         planetRender(&planet, blockTextures, TEXTURE_SIZE);
 
@@ -164,21 +157,12 @@ int main(void) {
                 
         // cursor marker
         DrawRectangle(
-            mPlanetX*TEXTURE_SIZE, mPlanetY*TEXTURE_SIZE,
+            mousePlanet.x*TEXTURE_SIZE, mousePlanet.y*TEXTURE_SIZE,
             TEXTURE_SIZE, TEXTURE_SIZE, (Color){255, 255, 255, 32}
         );
 
-        EndMode2D();
         if (planetMode) EndShaderMode();
-        // player on screen
-        /*int x = ((player.x-0.5)*TEXTURE_SIZE - camera.target.x)*camera.zoom + camera.offset.x;
-        int y = ((player.y-1)*TEXTURE_SIZE - camera.target.y)*camera.zoom + camera.offset.y;
-        DrawTexturePro(
-            playerTexture,
-            (Rectangle){0, 0, TEXTURE_SIZE, 2*TEXTURE_SIZE},
-            (Rectangle){x, y, TEXTURE_SIZE*camera.zoom, 2*TEXTURE_SIZE*camera.zoom},
-            (Vector2){0, 0}, 0, WHITE
-        );*/
+        EndMode2D();
 
         // ui
         if (debugMenu) {

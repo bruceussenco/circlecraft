@@ -5,11 +5,10 @@ in vec2 vertexTexCoord;
 in vec4 vertexColor;
 
 uniform mat4 mvp;
-uniform float planetRadius;
 uniform float worldWidthPx;
 uniform float worldHeight;
 uniform float angleBetweenTiles;
-uniform float tileSize;
+uniform float textureSize;
 
 out vec2 fragTexCoord;
 out vec4 fragColor;
@@ -22,7 +21,7 @@ void main()
     fragColor = vertexColor;
 
     float angle = (vertexPosition.x / worldWidthPx) * 2.0 * PI;
-    float radius = planetRadius*pow(1.0+angleBetweenTiles, worldHeight-vertexPosition.y/tileSize);
+    float radius = (textureSize/angleBetweenTiles)*pow(1.0+angleBetweenTiles, worldHeight-vertexPosition.y/textureSize);
 
     vec4 bentPosition = vec4(
         radius * sin(angle),

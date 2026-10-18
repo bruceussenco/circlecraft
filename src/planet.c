@@ -24,7 +24,9 @@ void planetGenerate(Planet *planet) {
     for (int y = 0; y < planet->height; y++) {
         for (int x = 0; x < planet->width; x++) {
             int index = y*planet->width + x;
-            if (y > planet->height/2 + 2)
+            if (y == 0)
+                planet-> blocks[index] = 1;
+            else if (y > planet->height/2 + 2)
                 planet->blocks[index] = 3;
             else if (y > planet->height/2)
                 planet->blocks[index] = 2;

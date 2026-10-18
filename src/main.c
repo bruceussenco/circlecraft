@@ -12,10 +12,6 @@ typedef struct {
     float y;
 } Player;
 
-
-
-
-
 float getRadius(float tileAngle, int worldHeight, float y) {
     return (1/tileAngle)*pow(1.0+tileAngle, worldHeight-y);
 }
@@ -29,10 +25,13 @@ float radToDeg(float angle) {
 }
 
 // ---------- update ------------ //
-void update(Player* player, Camera2D* camera, Planet* planet) {
-    camera->zoom = expf(logf(camera->zoom) + ((float)GetMouseWheelMove()*0.1f));
+void update(Player* player, Camera2D* camera, Planet* planet,
+            bool* planetMode, bool* debugMenu) {
+    /*camera->zoom = expf(logf(camera->zoom) + ((float)GetMouseWheelMove()*0.1f));
     if (camera->zoom > 10.0f) camera->zoom = 10.0f;
-    else if (camera->zoom < 0.5f) camera->zoom = 0.5f;
+    else if (camera->zoom < 0.5f) camera->zoom = 0.5f;*/
+    if (IsKeyPressed(KEY_Q)) *planetMode = !*planetMode;
+    if (IsKeyPressed(KEY_E)) *debugMenu = !*debugMenu;
 
     float speed = 0.1;
     if (IsKeyDown(KEY_LEFT_SHIFT)) speed = 0.3;
@@ -45,13 +44,7 @@ void update(Player* player, Camera2D* camera, Planet* planet) {
     if (player->y < 0) player->y = 0;
     if (player->y > planet->height-2) player->y = planet->height-2;
 
-    /* flat mode
-    camera->target = (Vector2){
-        (player->x)*TEXTURE_SIZE,
-        (player->y)*TEXTURE_SIZE
-    };*/
-
-    {
+    if (*planetMode) { // planet mode
         float tileAngle = PI*2/planet->width;
         float py = player->y + 1;
         float r = getRadius(tileAngle, planet->height, py)*TEXTURE_SIZE;
@@ -63,7 +56,13 @@ void update(Player* player, Camera2D* camera, Planet* planet) {
         camera->rotation = -radToDeg(a) + 90;
         camera->zoom = 4/(getRadius(tileAngle, planet->height, py+1)
                         - getRadius(tileAngle, planet->height, py));
-
+    } else { // flat mode
+        camera->target = (Vector2){
+            (player->x)*TEXTURE_SIZE,
+            (player->y)*TEXTURE_SIZE
+        };
+        camera->rotation = 0;
+        camera->zoom = 4;
     }
 }
 
@@ -72,7 +71,7 @@ int main(void) {
     InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "circlecraft");
     
     Planet planet = {};
-    if (!planetInit(&planet, 16, 16)) {
+    if (!planetInit(&planet, 64, 32)) {
         CloseWindow();
         return 1;
     }
@@ -121,12 +120,13 @@ int main(void) {
     SetShaderValue(planetShader, tileSizeLoc,
                    &tileSize, SHADER_UNIFORM_FLOAT);
 
+    bool planetMode = true;
+    bool debugMenu  = true;
+
     // -------------- game loop --------------- //
     SetTargetFPS(60);
     while (!WindowShouldClose()) {
         // update
-        update(&player, &camera, &planet);
-
         Vector2 mScreen = GetMousePosition();
         Vector2 mGlobal = {
             camera.target.x + (mScreen.x-camera.offset.x)/camera.zoom,
@@ -134,6 +134,8 @@ int main(void) {
         };
         int mPlanetX = floor(mGlobal.x/TEXTURE_SIZE);
         int mPlanetY = floor(mGlobal.y/TEXTURE_SIZE);
+
+        update(&player, &camera, &planet, &planetMode, &debugMenu);
 
         if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
             if (
@@ -148,8 +150,8 @@ int main(void) {
         // render
         BeginDrawing();
         ClearBackground(RAYWHITE);
+        if (planetMode) BeginShaderMode(planetShader);
         BeginMode2D(camera);
-        BeginShaderMode(planetShader);
 
         planetRender(&planet, blockTextures, TEXTURE_SIZE);
 
@@ -166,8 +168,8 @@ int main(void) {
             TEXTURE_SIZE, TEXTURE_SIZE, (Color){255, 255, 255, 32}
         );
 
-        EndShaderMode();
         EndMode2D();
+        if (planetMode) EndShaderMode();
         // player on screen
         /*int x = ((player.x-0.5)*TEXTURE_SIZE - camera.target.x)*camera.zoom + camera.offset.x;
         int y = ((player.y-1)*TEXTURE_SIZE - camera.target.y)*camera.zoom + camera.offset.y;
@@ -179,7 +181,11 @@ int main(void) {
         );*/
 
         // ui
-        DrawFPS(10, 10);
+        if (debugMenu) {
+            DrawRectangle(0, 0, 200, 70, (Color){0, 0, 0, 128});
+            DrawText(TextFormat("pos: (%.4f, %.4f)", player.x, player.y), 5, 0, 0, WHITE);
+            DrawFPS(10, 20);
+        }
 
         EndDrawing();
     }

@@ -4,14 +4,10 @@
 #include <stdlib.h>
 
 #include "planet.h"
+#include "player.h"
 
 #define TEXTURE_SIZE 8
 #define DEFAULT_ZOOM 4
-
-typedef struct {
-    float x;
-    float y;
-} Player;
 
 typedef struct {
     int x;
@@ -31,23 +27,19 @@ float radToDeg(float angle) {
 }
 
 // ---------- update ------------ //
-void update(Player* player, Camera2D* camera, Planet* planet,
-            bool* planetMode, bool* debugMenu) {
-    if (IsKeyPressed(KEY_Q)) *planetMode = !*planetMode;
-    if (IsKeyPressed(KEY_E)) *debugMenu = !*debugMenu;
-
-    float speed = 0.1;
-    if (IsKeyDown(KEY_LEFT_SHIFT)) speed = 0.3;
-
-    if (IsKeyDown(KEY_A)) player->x -= speed;
-    if (IsKeyDown(KEY_D)) player->x += speed;
-    if (IsKeyDown(KEY_W)) player->y -= speed;
-    if (IsKeyDown(KEY_S)) player->y += speed;
-
-    if (player->y < 0) player->y = 0;
-    if (player->y > planet->height-2) player->y = planet->height-2;
-
-    if (*planetMode) {
+IntVec2 getMousePosPlanet(Camera2D* camera, bool planetMode/*TODO*/) {
+    Vector2 mScreen = GetMousePosition();
+    Vector2 mGlobal = {
+        camera->target.x + (mScreen.x-camera->offset.x)/camera->zoom,
+        camera->target.y + (mScreen.y-camera->offset.y)/camera->zoom
+    };
+    return (IntVec2){
+        floor(mGlobal.x/TEXTURE_SIZE),
+        floor(mGlobal.y/TEXTURE_SIZE)
+    };
+}
+void updateCamera(Camera2D* camera, Planet* planet, Player* player, bool planetMode) {
+    if (planetMode) {
         float tileAngle = PI*2/planet->width;
         float py = player->y + 1;
         float r = getRadius(tileAngle, planet->height, py)*TEXTURE_SIZE;
@@ -68,7 +60,36 @@ void update(Player* player, Camera2D* camera, Planet* planet,
         camera->zoom = DEFAULT_ZOOM;
     }
 }
+void updatePlayer(Player* player, Planet* planet) {
+    float speed = 0.1;
+    if (IsKeyDown(KEY_LEFT_SHIFT)) speed = 0.3;
 
+    if (IsKeyDown(KEY_A)) player->x -= speed;
+    if (IsKeyDown(KEY_D)) player->x += speed;
+    if (IsKeyDown(KEY_W)) player->y -= speed;
+    if (IsKeyDown(KEY_S)) player->y += speed;
+
+    if (player->y < 0) player->y = 0;
+    if (player->y > planet->height-2) player->y = planet->height-2;
+}
+void updateConfig(bool* planetMode, bool* debugMenu) {
+    if (IsKeyPressed(KEY_Q)) *planetMode = !*planetMode;
+    if (IsKeyPressed(KEY_E)) *debugMenu = !*debugMenu;
+}
+
+    
+void updatePlanet(Planet* planet, IntVec2 mousePlanet) {
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        if (
+            mousePlanet.x >= 0 && mousePlanet.y >= 0 &&
+            mousePlanet.x < planet->width && mousePlanet.y < planet->height
+        ) {
+            int index = mousePlanet.x + mousePlanet.y*planet->width;
+            planet->blocks[index] = 0;
+        }
+    }
+}
+// ---------------------------------------- //
 int main(void) {
     const int SCREEN_WIDTH = 800, SCREEN_HEIGHT = 450;
     InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "circlecraft");
@@ -87,7 +108,7 @@ int main(void) {
     blockTextures[3] = LoadTexture("textures/stone.png");
     Texture2D playerTexture = LoadTexture("textures/player.png");
 
-    Player player = {1.0, planet.height/2-1.0};
+    Player player = newPlayer(1, planet.height/2-1);
 
     Camera2D camera = {0};
     camera.offset = (Vector2){SCREEN_WIDTH/2, SCREEN_HEIGHT/2};
@@ -118,27 +139,12 @@ int main(void) {
     SetTargetFPS(60);
     while (!WindowShouldClose()) {
         // update
-        Vector2 mScreen = GetMousePosition();
-        Vector2 mGlobal = {
-            camera.target.x + (mScreen.x-camera.offset.x)/camera.zoom,
-            camera.target.y + (mScreen.y-camera.offset.y)/camera.zoom
-        };
-        IntVec2 mousePlanet = {
-            floor(mGlobal.x/TEXTURE_SIZE),
-            floor(mGlobal.y/TEXTURE_SIZE)
-        };
+        IntVec2 mousePlanet = getMousePosPlanet(&camera, planetMode);
 
-        update(&player, &camera, &planet, &planetMode, &debugMenu);
-
-        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-            if (
-                mousePlanet.x >= 0 && mousePlanet.y >= 0 &&
-                mousePlanet.x < planet.width && mousePlanet.y < planet.height
-            ) {
-                int index = mousePlanet.x + mousePlanet.y*planet.width;
-                planet.blocks[index] = 0;
-            }
-        }
+        updateConfig(&planetMode, &debugMenu);
+        updatePlayer(&player, &planet);
+        updateCamera(&camera, &planet, &player, planetMode);
+        updatePlanet(&planet, mousePlanet);
 
         // render
         BeginDrawing();
@@ -176,7 +182,7 @@ int main(void) {
 
     UnloadTexture(playerTexture);
     for (int i = 1; i <= BLOCK_COUNT; i++) UnloadTexture(blockTextures[i]);
-
+    UnloadShader(planetShader);
     planetUnload(&planet);
 
     CloseWindow();

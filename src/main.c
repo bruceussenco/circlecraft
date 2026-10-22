@@ -71,6 +71,9 @@ void updatePlayer(Player* player, Planet* planet) {
 
     if (player->y < 0) player->y = 0;
     if (player->y > planet->height-2) player->y = planet->height-2;
+
+    if (player->x < 0) player->x += planet->width;
+    if (player->x >= planet->width) player->x -= planet->width;
 }
 void updateConfig(bool* planetMode, bool* debugMenu) {
     if (IsKeyPressed(KEY_Q)) *planetMode = !*planetMode;
@@ -95,7 +98,7 @@ int main(void) {
     InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "circlecraft");
     
     Planet planet = {};
-    if (!planetInit(&planet, 64, 32)) {
+    if (!planetInit(&planet, 2048, 256)) {
         CloseWindow();
         return 1;
     }
@@ -152,7 +155,14 @@ int main(void) {
         BeginMode2D(camera);
         if (planetMode) BeginShaderMode(planetShader);
 
-        planetRender(&planet, blockTextures, TEXTURE_SIZE);
+        float tileSize = TEXTURE_SIZE*DEFAULT_ZOOM;
+        int tileCountWidth  = SCREEN_WIDTH/tileSize + 1;
+        int tileCountHeight = SCREEN_HEIGHT/tileSize + 1;
+        int x0 = floor(player.x - tileCountWidth/2);
+        int y0 = floor(player.y - tileCountHeight/2 - 1);
+        int x1 = floor(player.x + tileCountWidth/2 + 1);
+        int y1 = floor(player.y + tileCountHeight/2 + 2);
+        planetRender(&planet, blockTextures, TEXTURE_SIZE, x0, y0, x1, y1);
 
         DrawTexture(
             playerTexture,

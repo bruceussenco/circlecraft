@@ -38,10 +38,18 @@ void planetGenerate(Planet *planet) {
     }
 }
 
-void planetRender(Planet *planet, Texture2D *textures, int texture_size) {
-    for (int j = 0; j < planet->height; j++) {
-        for (int i = 0; i < planet->width; i++) {
-            int index = i + j*planet->width;
+int mymod(int a, int b) {
+    return (a % b + b) % b;
+}
+void planetRender(Planet *planet, Texture2D *textures, int texture_size,
+        int i0, int j0, int i1, int j1) {
+    //for (int j = 0; j < planet->height; j++) {
+    //    for (int i = 0; i < planet->width; i++) {
+    if (j0 < 0) j0 = 0;
+    if (j1 > planet->height) j1 = planet->height;
+    for (int j = j0; j < j1; j++) {
+        for (int i = i0; i < i1; i++) {
+            int index = mymod(i, planet->width) + j*planet->width;
             int block_id = planet->blocks[index];
             if (block_id == 0) continue;
 

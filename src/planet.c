@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include "planet.h"
 #include "raylib.h"
+#include "mymath.h"
 
 bool planetInit(Planet *planet, int width, int height) {
     if (width <= 0 || height <= 0) return false;
@@ -38,13 +39,8 @@ void planetGenerate(Planet *planet) {
     }
 }
 
-int mymod(int a, int b) {
-    return (a % b + b) % b;
-}
 void planetRender(Planet *planet, Texture2D *textures, int texture_size,
         int i0, int j0, int i1, int j1) {
-    //for (int j = 0; j < planet->height; j++) {
-    //    for (int i = 0; i < planet->width; i++) {
     if (j0 < 0) j0 = 0;
     if (j1 > planet->height) j1 = planet->height;
     for (int j = j0; j < j1; j++) {

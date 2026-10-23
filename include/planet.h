@@ -7,7 +7,7 @@
 typedef struct {
     int width;
     int height;
-    int *blocks;
+    unsigned char *blocks;
 } Planet;
 
 bool planetInit(Planet *planet, int width, int height);

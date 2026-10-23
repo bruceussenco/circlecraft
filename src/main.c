@@ -5,9 +5,10 @@
 
 #include "planet.h"
 #include "player.h"
+#include "mymath.h"
 
-#define TEXTURE_SIZE 8
-#define DEFAULT_ZOOM 4
+#define TEXTURE_SIZE 16
+#define DEFAULT_ZOOM 2
 
 typedef struct {
     int x;
@@ -27,14 +28,14 @@ float radToDeg(float angle) {
 }
 
 // ---------- update ------------ //
-IntVec2 getMousePosPlanet(Camera2D* camera, bool planetMode/*TODO*/) {
+IntVec2 getMousePosPlanet(Camera2D* camera, int planetWidth, bool planetMode/*TODO*/) {
     Vector2 mScreen = GetMousePosition();
     Vector2 mGlobal = {
         camera->target.x + (mScreen.x-camera->offset.x)/camera->zoom,
         camera->target.y + (mScreen.y-camera->offset.y)/camera->zoom
     };
     return (IntVec2){
-        floor(mGlobal.x/TEXTURE_SIZE),
+        mymod(floor(mGlobal.x/TEXTURE_SIZE), planetWidth),
         floor(mGlobal.y/TEXTURE_SIZE)
     };
 }
@@ -79,8 +80,6 @@ void updateConfig(bool* planetMode, bool* debugMenu) {
     if (IsKeyPressed(KEY_Q)) *planetMode = !*planetMode;
     if (IsKeyPressed(KEY_E)) *debugMenu = !*debugMenu;
 }
-
-    
 void updatePlanet(Planet* planet, IntVec2 mousePlanet) {
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
         if (
@@ -98,7 +97,7 @@ int main(void) {
     InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "circlecraft");
     
     Planet planet = {};
-    if (!planetInit(&planet, 2048, 256)) {
+    if (!planetInit(&planet, 1024, 256)) {
         CloseWindow();
         return 1;
     }
@@ -142,7 +141,7 @@ int main(void) {
     SetTargetFPS(60);
     while (!WindowShouldClose()) {
         // update
-        IntVec2 mousePlanet = getMousePosPlanet(&camera, planetMode);
+        IntVec2 mousePlanet = getMousePosPlanet(&camera, planet.width, planetMode);
 
         updateConfig(&planetMode, &debugMenu);
         updatePlayer(&player, &planet);
@@ -184,7 +183,8 @@ int main(void) {
         if (debugMenu) {
             DrawRectangle(0, 0, 200, 70, (Color){0, 0, 0, 128});
             DrawText(TextFormat("pos: (%.4f, %.4f)", player.x, player.y), 5, 0, 0, WHITE);
-            DrawFPS(10, 20);
+            DrawText(TextFormat("tile on mouse: (%i, %i)", mousePlanet.x, mousePlanet.y), 5, 10, 0, WHITE);
+            DrawFPS(10, 30);
         }
 
         EndDrawing();
